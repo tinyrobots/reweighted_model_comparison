@@ -1,6 +1,6 @@
 # reweighted_model_comparison
 
-_WARNING: These scripts are currently adapted for the special case of reanalysing the 4-subject 92-image dataset. I will extend them asap to the more general case where there is a large enough number of both subjects and conditions to bootstrap over both._
+_WARNING: These scripts are currently adapted for the special case of reanalysing the 4-subject 92-image dataset. I will extend them asap to the more general case where there is a large enough number of both subjects and conditions to bootstrap and cross-validate over both._
 
 Start at `calling_script.m`
 - This loads data, sets options, and calls `FUNC_compareRefRDM2candRDMs_reweighting.m`...
