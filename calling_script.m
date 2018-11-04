@@ -62,7 +62,7 @@ highlevel_options.rootPath = pwd;
 % options used by FUNC_bootstrap_wrapper
 highlevel_options.boot_options.nboots = 1000; % make small dummy value for test run
 highlevel_options.boot_options.boot_conds = true;
-highlevel_options.boot_options.boot_subjs = false; % for 4 subject data
+highlevel_options.boot_options.boot_subjs = false; % WARNING: will not currently work if true, I don't think.
 
 % options used by FUNC_reweighting_wrapper
 highlevel_options.rw_options.nTestSubjects = 1; % current version only does LOO crossval, suitable for 4 subject data
