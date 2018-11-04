@@ -20,19 +20,19 @@
 
 clear all
 
-% This points to a fresh install (04.11.18) from github of the latest
-% master branch of the RSA toolbox:
+% This was written to work with a fresh install from github of the
+% latest master branch of the RSA toolbox (04.11.2018):
 rsa_toolbox_dir = 'D:\Dropbox\coding\MATLAB\rsatoolbox-master';
 addpath(genpath(rsa_toolbox_dir));
 
 %% user variables 
 
 % point to locations of models, data etc
-refRDM_file = '../data/hIT_92imgs.mat';
-model_dir = '../data/models/';
+refRDM_file = 'hIT_92imgs.mat';
+model_dir = '.';
 
 % where to save analysis results and figures
-save_dir = '../results/';
+save_dir = './results/';
 
 % load model and brain RDMs...
 % BEWARE this is all hardcoded presently for the demo reanalyis of Seyed's data
