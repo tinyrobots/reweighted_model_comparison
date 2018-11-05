@@ -53,7 +53,7 @@ save_dir = '../results/';
 % % options used by FUNC_bootstrap_wrapper
 % highlevel_options.boot_options.nboots = 10; % make small dummy value for test run
 % highlevel_options.boot_options.boot_conds = true;
-% highlevel_options.boot_options.boot_subjs = false; % for 4 subject data
+% highlevel_options.boot_options.boot_subjs = false; % NOT YET IMPLEMENTED
 % 
 % % options used by FUNC_reweighting_wrapper
 % highlevel_options.rw_options.nTestSubjects = 1; % current version only does LOO crossval, suitable for 4 subject data
@@ -89,7 +89,7 @@ highlevel_options.rootPath = pwd;
 % options used by FUNC_bootstrap_wrapper
 highlevel_options.boot_options.nboots = 100; % make small dummy value for test run
 highlevel_options.boot_options.boot_conds = true;
-highlevel_options.boot_options.boot_subjs = false; % optionally possible when there are many subjects
+highlevel_options.boot_options.boot_subjs = false; % NOT YET IMPLEMENTED
 
 % options used by FUNC_reweighting_wrapper
 highlevel_options.rw_options.nTestSubjects = 4; % if 1, will do exhaustive LOO xval. Otherwise, select desired split of train/test subjects for inner xval loop.
