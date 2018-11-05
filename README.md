@@ -4,7 +4,7 @@ _Use with caution - still in development - and let me know if/when you find bugs
 
 _P.S. I have not yet made any attempts to optimise for running time. Can hopefully be made a fair bit faster!_
 
-_P.P.S. The main crossvalidation loops now work with arbitrary splits of train/test subjects and images. HOWEVER, the bootstrap wrapper around it all currently only works for bootstrapping over the population of images, treating subjects as a fixed effect. This is the next thing I will add - but if you're reading this, I haven't yet!_
+_P.P.S. The main crossvalidation loops now work with arbitrary splits of train/test subjects and images. HOWEVER, **the bootstrap wrapper around it all currently only works for bootstrapping over the population of images, treating subjects as a fixed effect**. This is the next thing I will add - but if you're reading this, I haven't yet!_
 
 Start at `calling_script.m` in `/code`
 - This loads data, sets options, and calls `FUNC_compareRefRDM2candRDMs_reweighting.m`...
