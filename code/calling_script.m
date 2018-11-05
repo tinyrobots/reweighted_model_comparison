@@ -58,7 +58,12 @@ save_dir = '../results/';
 % % options used by FUNC_reweighting_wrapper
 % highlevel_options.rw_options.nTestSubjects = 1; % current version only does LOO crossval, suitable for 4 subject data
 % highlevel_options.rw_options.nTestImages = 23; % i.e. 1/4 of the 92 images
-% highlevel_options.rw_options.nLoops = 20; % number of crossvalidation loops within each bootstrap sample (stabilises estimate)
+% highlevel_options.rw_options.nImageLoops = 20; % number of crossvalidation loops within each bootstrap sample (stabilises estimate)
+% if highlevel_options.rw_options.nTestSubjects == 1
+%     highlevel_options.rw_options.nSubjectLoops = size(refRDMs,3); % will use exhaustive LOO xval
+% else
+%     highlevel_options.rw_options.nSubjectLoops = 20; % specify number of inner crossvalidation loops within each bootstrap sample (xvals reweighting over subjects)
+% end
 
 %% EXAMPLE 2: 24-subject 62-image dataset 
 % from Alex Walther & Niko Kriegeskorte
