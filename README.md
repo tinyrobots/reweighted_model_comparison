@@ -8,10 +8,10 @@ Start at `calling_script.m` in `/code`
 - ...which is a small wrapper function which just does the sampling for each bootstrap. Each bootstrap sample is then passed to `FUNC_reweighting_wrapper.m`...
 - ...which performs the bulk of the analysis, doing a nested cross-validation procedure (looping once over stimuli, and once over subjects).
 
-Caveats:
+Timing note:
+- Currently takes approx 2hrs to generate 1,000 bootstrap samples for a dataset with 24 subjects and 62 stimulus conditions. Possible that some optimisations can be made.
 
-1. _Use with caution - still in development - and let me know if/when you find bugs!_
-2. _The main crossvalidation loops now work with arbitrary splits of train/test subjects and images. HOWEVER, **the bootstrap wrapper around it all currently only works for bootstrapping over the population of images, treating subjects as a fixed effect**. This is the next thing I will add - but if you're reading this, I haven't yet!_
-3. _I have not yet made any attempts to optimise for running time. Can hopefully be made a fair bit faster!_
+Caveat:
+_Use with caution - still in development - and let me know if/when you find bugs!_
 
 
