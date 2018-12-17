@@ -63,7 +63,7 @@ for loop = 1:rw_options.nImageLoops
     end
     
     % restructure subject data to put NaNs in the diagonals, so that when
-    % crossvalidation causes some to end up in the off-diag spots they can
+    % bootstrap resampling causes some to end up in the off-diag spots they can
     % be ignored (zeros would artificially inflate correlation)
     for s = 1:size(refRDMs,3)
         this_subj = refRDMs(:,:,s);
@@ -78,7 +78,6 @@ for loop = 1:rw_options.nImageLoops
 
     % inner loop of subject xval
     for subj_count = 1:rw_options.nSubjectLoops
-%         fprintf('subj:%d...', subj_count)
 
         % do exhaustive LOO if nTestSubjects is 1 (suitable for small sample sizes)
         if rw_options.nTestSubjects == 1
@@ -90,7 +89,9 @@ for loop = 1:rw_options.nImageLoops
             
             subj_set_ok = 0;
             while subj_set_ok == 0
-                % try choosing a random sample of test condition IDs
+                % try choosing a random sample of test condition IDs (from
+                % all possible subjects, not yet considering which are present
+                % in this bootstrap sample)
                 subj_ids_test = datasample(1:nSubjs, rw_options.nTestSubjects, 'Replace', false);
                 subj_ids_train = setdiff(1:nSubjs,subj_ids_test); % use the others for training
                 % check that a reasonable number of them is present in this bootstrap sample
@@ -100,7 +101,7 @@ for loop = 1:rw_options.nImageLoops
                     'fewer than 3 test or train subjects selected; repicking'
                 end 
             end
-            % find locations of any of these present in the bootstrapped sample,
+            % find locations of any of these present in the (possibly) bootstrapped sample,
             % and append to two lists of subj_id entries we're going to use for
             % training and testing:
             subj_locs_test = [];
@@ -123,40 +124,40 @@ for loop = 1:rw_options.nImageLoops
         % rank transform it - doesn't affect (Spearman) correlations with
         % models, but does ensure our noise ceiling calculations are correct
         % (see Appendix of Nili et al. 2015)
-        % need to replace diagonals with zeros so we can use squareform
+        % First need to replace diagonals with zeros so we can use squareform
         dataRDM_train(logical(eye(size(dataRDM_train,1)))) = 0;
-        dataRDM_train_ltv = rankTransform_equalsStayEqual(squareform(dataRDM_train)); % take mean, and put in ltv format for glmnet
+        % rankTransform() is faster than rankTransform_equalsStayEqual(),and 
+        % justified because squareform() is a triangular
+        % matrix of real data, so highly unlikely to contain any equal entries
+        dataRDM_train_ltv = rankTransform(squareform(dataRDM_train));
 
         % test data
         c_sel_test = cond_ids(cond_locs_test);
         s_sel_test = subj_ids(subj_locs_test);
         dataRDMs_test = refRDMs(c_sel_test,c_sel_test,s_sel_test);
-        % rank transform it - doesn't affect (Spearman) correlations with
-        % models, but does ensure our noise ceiling calculations are correct
-        % (see Appendix of Nili et al. 2015)
-        % first need to replace diagonals with zeros so we can use squareform
+        % rank transform it as above
         clear dataRDMs_test_ltv
         for s = 1:size(dataRDMs_test,3)
             this_subj = dataRDMs_test(:,:,s);
             this_subj(logical(eye(size(this_subj,1)))) = 0;
-            dataRDMs_test_ltv(s,:) = rankTransform_equalsStayEqual(squareform(this_subj));
+            dataRDMs_test_ltv(s,:) = rankTransform(squareform(this_subj));
         end
         
         % also create an RDM of ALL subjects' data for test images,
         % for calculating the upper bound of the noise ceiling
-        dataRDMs_test_all_subjs = refRDMs(c_sel_test,c_sel_test,:); % TODO: need to change this if bootstrapping Ss?
+        dataRDMs_test_all_subjs = refRDMs(c_sel_test,c_sel_test,subj_ids); % nb. if bootstrapping Ss, this can contain duplicates
         dataRDMs_test_all_subjs = mean(dataRDMs_test_all_subjs,3); % we only ever need the mean
-        % rank transform it
+        % rank transform it as above
         dataRDMs_test_all_subjs(logical(eye(size(dataRDMs_test_all_subjs,1)))) = 0;
-        dataRDMs_test_all_subjs_ltv = rankTransform_equalsStayEqual(squareform(dataRDMs_test_all_subjs));
+        dataRDMs_test_all_subjs_ltv = rankTransform(squareform(dataRDMs_test_all_subjs));
         
         % ...plus an RDM of TRAIN subjects' data for TEST images,
         % for calculating the LOWER bound of the noise ceiling
-        dataRDMs_test_train_subjs = refRDMs(c_sel_test,c_sel_test,s_sel_train); % TODO: need to change this if bootstrapping Ss?
+        dataRDMs_test_train_subjs = refRDMs(c_sel_test,c_sel_test,s_sel_train); % nb. if bootstrapping Ss, this can contain duplicates - but cannot overlap w training data
         dataRDMs_test_train_subjs = mean(dataRDMs_test_train_subjs,3); % we only ever need the mean
-        % rank transform it
+        % rank transform it as above
         dataRDMs_test_train_subjs(logical(eye(size(dataRDMs_test_train_subjs,1)))) = 0;
-        dataRDMs_test_train_subjs_ltv = rankTransform_equalsStayEqual(squareform(dataRDMs_test_train_subjs));
+        dataRDMs_test_train_subjs_ltv = rankTransform(squareform(dataRDMs_test_train_subjs));
 
         % remove NaN columns from human test data because Spearman
         % correlation function doesn't handle NaNs, and we don't want to
@@ -181,13 +182,13 @@ for loop = 1:rw_options.nImageLoops
                 cModelRDM_train(logical(eye(size(cModelRDM_train,1)))) = NaN; % put NaNs in diagonal
                 cModelRDM_train = cModelRDM_train(c_sel_train,c_sel_train); % resample rows and columns
                 cModelRDM_train(logical(eye(size(cModelRDM_train,1)))) = 0; % put zeros in diagonal
-                modelRDMs_train_ltv(:,layer) = rankTransform_equalsStayEqual(squareform(cModelRDM_train));
+                modelRDMs_train_ltv(:,layer) = rankTransform(squareform(cModelRDM_train));
 
                 cModelRDM_test = model_RDMs(:,:,layer);
                 cModelRDM_test(logical(eye(size(cModelRDM_test,1)))) = NaN; % put NaNs in diagonal
                 cModelRDM_test = cModelRDM_test(c_sel_test,c_sel_test); % resample rows and columns
                 cModelRDM_test(logical(eye(size(cModelRDM_test,1)))) = 0; % put zeros in diagonal
-                modelRDMs_test_ltv(:,layer) = rankTransform_equalsStayEqual(squareform(cModelRDM_test));
+                modelRDMs_test_ltv(:,layer) = rankTransform(squareform(cModelRDM_test));
             end
 
             % 3. do regression to estimate layer weights ########################## 
@@ -201,35 +202,40 @@ for loop = 1:rw_options.nImageLoops
             % glmnet for ridge regression, etc.
             weights = lsqnonneg(double(modelRDMs_train_ltv), double(dataRDM_train_ltv(:)));
 
-            % 4. calculate performance on the held out subjects and images ########
-
             % combine each layer in proportion to the estimated weights
             this_model_test_ltv_weighted = (modelRDMs_test_ltv*weights)';
-
+            this_model_test_ltv_weighted = rankTransform(this_model_test_ltv_weighted);
+            
             % add to our list of model predicted RDMs
             modelRDMs_test_ltv_weighted(model_num,:) = this_model_test_ltv_weighted;
         end
 
+        % 4. calculate performance on the held out subjects and images ########
+
         % Now we have added the reweighted version to our list of models, 
         % evaluate each one, along with the noise ceiling
         % - need to do this individually against each of the test Ss
+        % Note that if bootstrapping Ss, the test subjects may not be
+        % unique, but may contain duplicates. This equates to weighting
+        % each subject's data according to how frequently it occurs in this
+        % bootstrapped sample.
         clear tm tcl tcu % very temp storages
         for test_subj = 1:size(dataRDMs_test_ltv,1)
             % for each of the component models
             for comp_num = 1:size(model_RDMs,3)
-                tm(test_subj,comp_num) = 1-pdist([modelRDMs_test_ltv(:, comp_num)'; dataRDMs_test_ltv(test_subj,:)],'spearman');
+                tm(test_subj,comp_num) = corr(modelRDMs_test_ltv(:, comp_num), dataRDMs_test_ltv(test_subj,:)', 'Type', 'spearman');
             end
             % ...and finally for the weighted combination of these components
-            tm(test_subj,size(model_RDMs,3)+1) = 1-pdist([modelRDMs_test_ltv_weighted(1,:); dataRDMs_test_ltv(test_subj,:)],'spearman');
+            tm(test_subj,size(model_RDMs,3)+1) = corr(modelRDMs_test_ltv_weighted(1,:)', dataRDMs_test_ltv(test_subj,:)', 'Type', 'spearman');
             
             % Model for lower bound = correlation between each subject and mean  
             % of test data from TRAINING subjects (this captures a "perfectly fitted" 
             % model, which has not been allowed to peek at any of the training Ss' data)
-            tcl(test_subj) = 1-pdist([dataRDMs_test_train_subjs_ltv; dataRDMs_test_ltv(test_subj,:)],'spearman');
+            tcl(test_subj) = corr(dataRDMs_test_train_subjs_ltv', dataRDMs_test_ltv(test_subj,:)', 'Type', 'spearman');
             
             % Model for upper noise ceiling = correlation between each subject 
             % and mean of ALL train and test subjects' data, including themselves (overfitted)
-            tcu(test_subj) = 1-pdist([dataRDMs_test_all_subjs_ltv; dataRDMs_test_ltv(test_subj,:)],'spearman');
+            tcu(test_subj) = corr(dataRDMs_test_all_subjs_ltv', dataRDMs_test_ltv(test_subj,:)', 'Type', 'spearman');
         end
         
         % average over the individual test subjects
