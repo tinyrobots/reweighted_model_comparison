@@ -29,41 +29,47 @@ addpath(genpath(rsa_toolbox_dir));
 save_dir = '../results/';
 
 %% EXAMPLE 1: 4-subject 92-image dataset 
-% % from Khaligh-Razavi & Kriegeskorte (2014)
-% % load data and set options...
-% 
-% load('../data_92demo/hIT_92imgs.mat') 
-% refRDMs = hIT_92imgs;
-% 
+% from Khaligh-Razavi & Kriegeskorte (2014)
+% load data and set options...
+
+load('../data_92demo/hIT_92imgs.mat') 
+refRDMs = hIT_92imgs;
+
+% precalculated AlexNet models
 % load('../data_92demo/convNetRDMs.mat')
 % load('../data_92demo/svmRDMs.mat')
 % model_struct = [convNetRDMs(1:7), svmRDMs];
-% 
-% % restructure as a cell array for compatibility with compareRefRDM2candRDMs...
-% for i = 1:length(model_struct)
-%     model_RDMs{i} = model_struct(i);
-% end
-% 
-% % options used by FUNC_compareRefRDM2candRDMs_reweighting
-% highlevel_options.reweighting = true; % true = bootstrapped xval reweighting. Otherwise proceeds with standard RSA Toolbox analysis.
-% highlevel_options.resultsPath = save_dir;
-% highlevel_options.barsOrderedByRDMCorr = false;
-% highlevel_options.rootPath = pwd;
-% 
-% % options used by FUNC_bootstrap_wrapper
-% highlevel_options.boot_options.nboots = 10; % make small dummy value for test run
-% highlevel_options.boot_options.boot_conds = true;
-% highlevel_options.boot_options.boot_subjs = false; % NOT YET IMPLEMENTED
-% 
-% % options used by FUNC_reweighting_wrapper
-% highlevel_options.rw_options.nTestSubjects = 1; % current version only does LOO crossval, suitable for 4 subject data
-% highlevel_options.rw_options.nTestImages = 23; % i.e. 1/4 of the 92 images
-% highlevel_options.rw_options.nImageLoops = 20; % number of crossvalidation loops within each bootstrap sample (stabilises estimate)
-% if highlevel_options.rw_options.nTestSubjects == 1
-%     highlevel_options.rw_options.nSubjectLoops = size(refRDMs,3); % will use exhaustive LOO xval
-% else
-%     highlevel_options.rw_options.nSubjectLoops = 20; % specify number of inner crossvalidation loops within each bootstrap sample (xvals reweighting over subjects)
-% end
+
+% or 27 shallow models (ignore final reweighted model)
+load('../data_92demo/modelRDMs_28models.mat')
+model_struct = modelRDMs(1:27);
+highlevel_options.plotComparisonBars = false; % in line with original Fig 2, don't show comparisons
+
+% restructure as a cell array for compatibility with compareRefRDM2candRDMs...
+for i = 1:length(model_struct)
+    model_RDMs{i} = model_struct(i);
+end
+
+% options used by FUNC_compareRefRDM2candRDMs_reweighting
+highlevel_options.reweighting = true; % true = bootstrapped xval reweighting. Otherwise proceeds with standard RSA Toolbox analysis.
+highlevel_options.resultsPath = save_dir;
+highlevel_options.barsOrderedByRDMCorr = false;
+highlevel_options.rootPath = pwd;
+
+% options used by FUNC_bootstrap_wrapper
+highlevel_options.boot_options.nboots = 100; % make small dummy value for test run
+highlevel_options.boot_options.boot_conds = true;
+highlevel_options.boot_options.boot_subjs = false; % insufficient subjects here
+
+% options used by FUNC_reweighting_wrapper
+highlevel_options.rw_options.nTestSubjects = 1; 
+highlevel_options.rw_options.nTestImages = 23; % i.e. 1/4 of the 92 images
+highlevel_options.rw_options.nImageLoops = 20; % number of crossvalidation loops within each bootstrap sample (stabilises estimate)
+if highlevel_options.rw_options.nTestSubjects == 1
+    highlevel_options.rw_options.nSubjectLoops = size(refRDMs,3); % will use exhaustive LOO xval
+else
+    highlevel_options.rw_options.nSubjectLoops = 20; % specify number of inner crossvalidation loops within each bootstrap sample (xvals reweighting over subjects)
+end
 
 %% EXAMPLE 2: 24-subject 62-image dataset 
 % from Alex Walther & Niko Kriegeskorte
@@ -89,11 +95,11 @@ highlevel_options.rootPath = pwd;
 % options used by FUNC_bootstrap_wrapper
 highlevel_options.boot_options.nboots = 100; % make small dummy value for test run
 highlevel_options.boot_options.boot_conds = true;
-highlevel_options.boot_options.boot_subjs = false; % NOT YET IMPLEMENTED
+highlevel_options.boot_options.boot_subjs = true;
 
 % options used by FUNC_reweighting_wrapper
-highlevel_options.rw_options.nTestSubjects = 4; % if 1, will do exhaustive LOO xval. Otherwise, select desired split of train/test subjects for inner xval loop.
-highlevel_options.rw_options.nTestImages = 21; % i.e. 1/3 of the 62 images
+highlevel_options.rw_options.nTestSubjects = 10; % if 1, will do exhaustive LOO xval. Otherwise, select desired split of train/test subjects for inner xval loop.
+highlevel_options.rw_options.nTestImages = 10; % of the 62 images
 highlevel_options.rw_options.nImageLoops = 20; % number of outer crossvalidation loops within each bootstrap sample (stabilises estimate)
 if highlevel_options.rw_options.nTestSubjects == 1
     highlevel_options.rw_options.nSubjectLoops = size(refRDMs,3); % will use exhaustive LOO xval
