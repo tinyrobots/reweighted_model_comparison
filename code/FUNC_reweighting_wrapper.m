@@ -47,7 +47,7 @@ for loop = 1:rw_options.nImageLoops
         if (numel(intersect(cond_ids,cond_ids_test)) >= 3)
             cond_set_ok = 1;
         else
-            'fewer than 3 test or train conditions selected; repicking'
+            %'fewer than 3 test or train conditions selected; repicking'
         end 
     end
     % find locations of any of these present in the bootstrapped sample,
@@ -98,7 +98,7 @@ for loop = 1:rw_options.nImageLoops
                 if (numel(intersect(subj_ids,subj_ids_test)) >= 3)
                     subj_set_ok = 1;
                 else
-                    'fewer than 3 test or train subjects selected; repicking'
+                    %'fewer than 3 test or train subjects selected; repicking'
                 end 
             end
             % find locations of any of these present in the (possibly) bootstrapped sample,
