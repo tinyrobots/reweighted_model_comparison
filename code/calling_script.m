@@ -1,9 +1,23 @@
-% Wrapper for reanalysis of data from Khaligh-Razavi & Kriegeskorte (2014)
+% Wrapper for fitting models with multiple components
 % using bootstrapped cross-validated reweighting.
 % katherine.storrs@gmail.com
 
+% INPUT DATA FORMAT:
+% Need to provide two sources of data, one containing target data to be
+% fitted to (e.g. fMRI-derived RDMs) and one containing the set of models /
+% model components which you wish to create a weighted combination of.
+%       refRDMs -- brain data RDMs should be a single 3D matrix, with
+%                  dimensions CONDITIONS x CONDITIONS x SUBJECTS
+%       model_struct -- models should be in a 1 x NUM_MODELS struct, with
+%                  the fields:
+%                       -- "RDM": 2D CONDITIONS x CONDITIONS matrix
+%                       -- "name": short string name for that model, to be
+%                          used in plots.
+% The two "data_demo" directories contain some example .mat data files in
+% the above formats.
+
 % OUTPUTS:
-% As well as returning and saving plots and correlation matrices, 
+% As well as returning and saving a bar plot and a comparison matrix, 
 % this script will return the following variables:
 %       stats_p_r -- structure from
 %                    FUNC_compareRefRDM2candRDMs_reweighting, containing
@@ -17,7 +31,6 @@
 %                    bound obtained on each bootstrap sample
 %       upp_ceiling_corrs -- 1 x N_bootstraps vector listing the upper
 %                    bound obtained on each bootstrap sample
-
 clear all
 
 % This points to a fresh install (04.11.18) from github of the latest
