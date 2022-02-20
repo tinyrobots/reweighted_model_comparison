@@ -1,8 +1,6 @@
 % 23.09.2019
 % Barchart and scatterplot of output of whole-network-reweighting analyses.
 
-% clear all
-
 trained_names = {'alexnet','vgg16','googlenet','resnet18','resnet50','squeezenet','densenet201','inceptionresnetv2','mobilenetv2'};
 random_names = {'alexnet_rand01','vgg16_rand01','googlenet_rand01','resnet18_rand01','resnet50_rand01','squeezenet_rand01','densenet201_rand01','inceptionresnetv2_rand01','mobilenetv2_rand01'};
 pretty_names = {'Alexnet', 'VGG-16', 'Googlenet', 'Resnet-18','Resnet-50','Squeezenet','Densenet-201','InceptionResnet','Mobilenet'}; % used for plotting
@@ -98,119 +96,63 @@ diffs = repmat(ceiling_results.lower,[1, size(trainednetperfs_fitted,2)])-traine
 for i = 1:size(diffs,2)
     ci = quantile(diffs(:,i), [thresh, 1-thresh])
     if ci(1) > 0
+        % since nearly all models are significantly below noise ceiling,
+        % it's often neater to only indicate `ns` results, hence this line
+        % commented out by default
 %         text(barx(i)-0.1, lowceil+0.03, '*', 'FontSize',14);
     else
         text(barx(i)-0.1, lowceil+0.03, 'ns', 'FontSize',14);
     end
 end
 
-% % 2. each trained model vs its random version
-% ypos = lowceil-0.02; % y position for comparison lines
-% for m = 1:length(trained_names)
-%     diffs = trainednetperfs(:,m) - randomnetperfs(:,m);
-%     ci = quantile(diffs, [thresh, 1-thresh]);
-%     % check whether CI contains 0 to either side
-%     if ~((ci(1) < 0) && (0 < ci(2)))
-%         plot([m-0.2, m+0.2],[ypos, ypos], 'k-', 'LineWidth',2, 'HandleVisibility','off');
-%     end
-% end
-
-%% 2x2 ANOVA plot of effect of training and fitting
-
-figure(2)
-
-% collate so we can plot as grouped bars
-collapsedperfs = [mean(mean(randomnetperfs)),mean(mean(randomnetperfs_fitted)),mean(mean(trainednetperfs)),mean(mean(trainednetperfs_fitted))];
-collapsedsems = [std(mean(randomnetperfs))/sqrt(length(mean(randomnetperfs))),std(mean(randomnetperfs_fitted))/sqrt(length(mean(randomnetperfs_fitted))),std(mean(trainednetperfs))/sqrt(length(mean(trainednetperfs))),std(mean(trainednetperfs_fitted))/sqrt(length(mean(trainednetperfs_fitted)))];
-
-% noise ceiling first in drawing order
-patch([-1, -1, 5, 5],[lowceil, uppceil, uppceil, lowceil],[0.5, 0.5, 0.5],'edgecolor','none','FaceAlpha',0.5)
-hold on
-
-% Calculating the width for each bar group for proper error bar placement
-ngroups = 1;
-nbars = size(collapsedperfs, 2);
-colors = [untrained_unfit_col; untrained_fit_col; trained_unfit_col; trained_fit_col];
-for i = 1:nbars
-    bars = bar(i,collapsedperfs(i),'FaceColor', colors(i,:), 'FaceAlpha', 0.9, 'BarWidth',1, 'EdgeColor', 'w', 'LineWidth',1)
-    errorbar(i, collapsedperfs(i), collapsedsems(i), 'color','k','LineWidth',2,'LineStyle','none','CapSize',0);
-end
-
-% aesthetics
-box off
-xlim([0.3,4.7])
-ylim([0, uppceil+0.05])
-xticks([1,2,3,4])
-xticklabels({'untrained + unfitted','untrained + fitted', 'trained + unfitted', 'trained + fitted'});
-xtickangle(45);
-% legend('untrained - unfitted', 'untrained - fitted', 'trained - unfitted', 'trained - fitted', 'Box', 'on', 'EdgeColor', 'w');
-set(gcf,'color','w');
-set(gcf,'Position',[100 100 300 600])
-set(gca,'FontSize',16);
-% title('Combined performance of all layers for each network');
-ylabel({'\fontsize{16}RDM correlation with V1';'\fontsize{12}(Spearman)'});
-
-
-% anova stats
-anovadata = [[nanmean(randomnetperfs)';nanmean(randomnetperfs_fitted)'],[nanmean(trainednetperfs)';nanmean(trainednetperfs_fitted)']]
-[p,tbl] = anova2(anovadata,size(randomnetperfs,2))
-
-% percentages of explainable rank variance:
-proportion_explainable_var = (collapsedperfs.^2)./((uppceil+lowceil)/2)^2
-
 %% model comparison matrix of all trained and fitted versions
 
-% % each trained and fitted model vs every other
-% pairwise_sigs = zeros(length(trained_names),length(trained_names));
-% count=4;
-% for m = 1:length(trained_names)
-%     for n = 1:length(trained_names)
-%         if m > n
-%             diffs = trainednetperfs_fitted(:,m) - trainednetperfs_fitted(:,n);
-%             ci = quantile(diffs, [thresh, 1-thresh]);
-%             % check whether CI contains 0 to either side
-%             if m ~= n
-%                 if ~((ci(1) < 0) && (0 < ci(2)))
-%                     pairwise_sigs(m,n) = 1;
-%                 end
-%             end
-% %             figure(count)
-% %             hist(diffs,50)  
-% %             title(ci)
-% %             drawnow
-% %             count = count+1
-%         end
-%     end
-% end
-% 
-% colormap('copper')
-% imagesc(pairwise_sigs)
-% axis('square')
+% each trained and fitted model vs every other
+pairwise_sigs = zeros(length(trained_names),length(trained_names));
+count=4;
+for m = 1:length(trained_names)
+    for n = 1:length(trained_names)
+        if m > n
+            diffs = trainednetperfs_fitted(:,m) - trainednetperfs_fitted(:,n);
+            ci = quantile(diffs, [thresh, 1-thresh]);
+            % check whether CI contains 0 to either side
+            if m ~= n
+                if ~((ci(1) < 0) && (0 < ci(2)))
+                    pairwise_sigs(m,n) = 1;
+                end
+            end
+        end
+    end
+end
 
-%% other within-architecture comparisons:
+colormap('copper')
+imagesc(pairwise_sigs)
+axis('square')
 
-% % eg each trained unfitted model vs its untrained unfitted version
-% thresh = 0.05;%/length(trained_names);
-% sigs = zeros(1,length(trained_names));
-% count = 1;
-% for m = 1:length(trained_names)
-%     diffs = trainednetperfs(:,m) - trainednetperfs_fitted(:,m);
-%     ci = quantile(diffs, [thresh, 1-thresh]);
-%     % check whether CI contains 0 to either side
-%     if ~((ci(1) < 0) && (0 < ci(2)))
-%         sigs(m) = 1;
-%     end
-%     figure(count)
-%     hist(diffs,50)
-%     hold on
-%     plot([ci(1),ci(1)],[0,60])
-%     plot([ci(2),ci(2)],[0,60])
-%     title(trained_names{m})
-%     drawnow
-%     count = count+1;
-% end
-% 
-% sigs
+%% within-architecture comparisons:
+
+% eg each trained unfitted model vs its untrained unfitted version
+thresh = 0.05;%/length(trained_names);
+sigs = zeros(1,length(trained_names));
+count = 1;
+for m = 1:length(trained_names)
+    diffs = trainednetperfs(:,m) - trainednetperfs_fitted(:,m);
+    ci = quantile(diffs, [thresh, 1-thresh]);
+    % check whether CI contains 0 to either side
+    if ~((ci(1) < 0) && (0 < ci(2)))
+        sigs(m) = 1;
+    end
+    figure(count)
+    hist(diffs,50)
+    hold on
+    plot([ci(1),ci(1)],[0,60])
+    plot([ci(2),ci(2)],[0,60])
+    title(trained_names{m})
+    drawnow
+    count = count+1;
+end
+
+sigs
 
 %% scatterplot
 figure(4)
