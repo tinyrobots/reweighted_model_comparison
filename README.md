@@ -3,15 +3,16 @@
 _**Demos:** The `calling_script.m` contains two examples which draw from data and models provided in the two `/demo` folders -- these should run out-of-the-box as tests._
 
 Start at `calling_script.m` in `/code`
-- This loads data, sets options, and calls `FUNC_compareRefRDM2candRDMs_reweighting.m`...
-- ...which is a version of the standard `comparedRefRDM2candRDMs` function from the RSA Toolbox, modified to include a `userOptions.reweighting` option. If this is chosen, the usual analyses will be bypassed and the bootstrapped crossvalidated reweighting procedure will be done instead. The usual plotting functionality is used, with minor modifications. For the reweighting analysis, this function passes the data first to `FUNC_bootstrap_wrapper.m`...
+- This loads data, sets options, and calls `FUNC_bootstrap_wrapper.m`...
 - ...which is a small wrapper function which just does the sampling for each bootstrap. Each bootstrap sample is then passed to `FUNC_reweighting_wrapper.m`...
-- ...which performs the bulk of the analysis, doing a nested cross-validation procedure (looping once over stimuli, and once over subjects).
+- ...which performs the bulk of the analysis, using a cross-validation procedure (over stimuli and/or subjects, as chosen).
+- Once analysis has run and results saved, can use `plot_and_analyse.m` to visualise raw and reweighted model performance and conduct various statistical tests.
 
-Timing note:
-- Currently takes approx 2hrs to generate 1,000 bootstrap samples for a dataset with 24 subjects and 62 stimulus conditions. Possible that some optimisations can be made.
+Timing note - uses parallel for-loop in `FUNC_bootstrap_wrapper.m` to speed things up:
+- Takes approx XX mins to compute 1,000 bootstrap samples of 20 cross-validation folds, on a dataset with 24 subjects and 62 stimulus conditions.
+- If parallel computing toolbox not available or desired, simply change `parfor` to `for` at line 24
 
 Caveat:
-_Use with caution - still in development - and let me know if/when you find bugs!_
+_Use with caution and let me know if you find bugs!_
 
 
