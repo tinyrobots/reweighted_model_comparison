@@ -99,7 +99,17 @@ for loop = 1:rw_options.nCVs
     % also create an RDM of ALL subjects' data for test images,
     % for calculating the UPPER bound of the noise ceiling
     dataRDMs_test_all_subjs = refRDMs(c_sel_test,c_sel_test,subj_ids); % nb. if bootstrapping Ss, this can contain duplicates
-    dataRDMs_test_all_subjs = mean(dataRDMs_test_all_subjs,3); % we only ever need the mean
+    % rank-transform each subject's RDM before we average them 
+    % (assuming Spearman correlation is used to assess model performance; 
+    % see RSA Toolbox (Nili et al., 2014). If using a different correlation
+    % metric see RSA Toolbox for advice on how to transform data before
+    % averaging to create the "best fit" model for the upper noise ceiling.
+    for s = 1:size(dataRDMs_test_all_subjs,3)
+        dataRDMs_test_all_subjs(:,:,s) = squareform(tiedrank(squareform(dataRDMs_test_all_subjs(:,:,s))));
+    end
+    % Take the average, since we only use this RDM for noise ceiling
+    % calculations:
+    dataRDMs_test_all_subjs = mean(dataRDMs_test_all_subjs,3); 
     dataRDMs_test_all_subjs(logical(eye(size(dataRDMs_test_all_subjs,1)))) = 0;
     dataRDMs_test_all_subjs_ltv = squareform(dataRDMs_test_all_subjs);
 
