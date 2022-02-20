@@ -103,13 +103,7 @@ for s = 1:size(refRDMs,3)
 end
 
 layerlist = dir([pcaRDMdir,'*.mat']);
-
-% specifically for this analysis -- load pre-generated sampling order
-% -- this allows bootstrap simulations using the same random boot and cv
-% samples to be run at separate times.
-load(samplingfile, 'sampling_order');
-
-% options used by FUNC_compareRefRDM2candRDMs_reweighting
+% Similar to options used by FUNC_compareRefRDM2candRDMs in RSA toolbox
 highlevel_options.reweighting = true; % true = bootstrapped xval reweighting. Otherwise proceeds with standard RSA Toolbox analysis.
 highlevel_options.resultsPath = savedir;
 highlevel_options.barsOrderedByRDMCorr = false;
@@ -121,8 +115,6 @@ highlevel_options.boot_options.boot_conds = true;
 highlevel_options.boot_options.boot_subjs = true; 
 
 % options used by FUNC_reweighting_wrapper
-% -- WARNING: if using pre-computed sampling order, these must match what
-% was used to generate those:
 highlevel_options.rw_options.nTestSubjects = 5;
 highlevel_options.rw_options.nTestImages = 12;
 highlevel_options.rw_options.nCVs = nCV; % number of crossvalidation loops within each bootstrap sample (stabilises estimate)
