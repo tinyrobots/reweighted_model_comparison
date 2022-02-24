@@ -1,224 +1,161 @@
-% 23.09.2019
-% Barchart and scatterplot of output of whole-network-reweighting analyses.
+%% Example barchart and significance tests using output from cross-validated
+% reweighting procedure. Assumes a results folder containing:
+% -- bootstrap_output_ceilings.mat
+% -- bootstrap_output_combined.mat
+% -- bootstrap_output_components.mat
+% These are saved at the end of `calling_script.m` 
 
-trained_names = {'alexnet','vgg16','googlenet','resnet18','resnet50','squeezenet','densenet201','inceptionresnetv2','mobilenetv2'};
-random_names = {'alexnet_rand01','vgg16_rand01','googlenet_rand01','resnet18_rand01','resnet50_rand01','squeezenet_rand01','densenet201_rand01','inceptionresnetv2_rand01','mobilenetv2_rand01'};
-pretty_names = {'Alexnet', 'VGG-16', 'Googlenet', 'Resnet-18','Resnet-50','Squeezenet','Densenet-201','InceptionResnet','Mobilenet'}; % used for plotting
+clear all
 
-% load trained net results (fitted and unfitted)
-trainednetperfs = [];
-trainednetperfs_fitted = [];
-for model = 1:length(trained_names)
+resultsdir = strcat('../results/');
     
-%     resultsdir = strcat('../../JOCN_cluster_analyses/v1_summary_xmas/',trained_names{model},'/results/V1/');
-    resultsdir = strcat('../../JOCN_cluster_analyses/kate18/data/',trained_names{model},'/results/cluster0428/');
-    
-    load(strcat(resultsdir,'bootstrap_output_wholenet.mat'),'wholenet_results');
-    trainednetperfs = [trainednetperfs, wholenet_results.raw_fitted];
-    trainednetperfs_fitted = [trainednetperfs_fitted, wholenet_results.fittedPCA_fitted];
+load(strcat(resultsdir,'bootstrap_output_ceilings.mat'),'ceiling_results');
+load(strcat(resultsdir,'bootstrap_output_combined.mat'),'combined_results');
+load(strcat(resultsdir,'bootstrap_output_components.mat'),'component_results');
 
-    if model == 1 % assuming same from all models
-        load(strcat(resultsdir,'bootstrap_output_ceilings.mat'),'ceiling_results');
-        lowceil = mean(ceiling_results.lower);
-        uppceil = mean(ceiling_results.upper);
-    end
-end
+% average bootstrap estimates of lower and upper noise ceiling 
+lowceil = mean(ceiling_results.lower);
+uppceil = mean(ceiling_results.upper);
 
-% load random net results (fitted and unfitted)
-randomnetperfs = [];
-randomnetperfs_fitted = [];
-for model = 1:length(random_names)
-    
-%     resultsdir = strcat('../../JOCN_cluster_analyses/v1_summary_xmas/',random_names{model},'/results/V1/');
-    resultsdir = strcat('../../JOCN_cluster_analyses/kate18/data/',random_names{model},'/results/cluster0428/');
+% can specify names for each component here to label plot
+component_names = {'Layer 1','Layer 2','Layer 3','Layer 4','Layer 5','Layer 6','Layer 7'};
 
-    load(strcat(resultsdir,'bootstrap_output_wholenet.mat'),'wholenet_results');
-    randomnetperfs = [randomnetperfs, wholenet_results.raw_fitted];
-    randomnetperfs_fitted = [randomnetperfs_fitted, wholenet_results.fittedPCA_fitted];
-    
-end
+%% PLOT 1: performance of each component separately
 
-% collate so we can plot as grouped bars
-groupedperfs = [nanmean(randomnetperfs); nanmean(randomnetperfs_fitted); nanmean(trainednetperfs); nanmean(trainednetperfs_fitted)]';
-groupedstds = [nanstd(randomnetperfs); nanstd(randomnetperfs_fitted); nanstd(trainednetperfs); nanstd(trainednetperfs_fitted)]';
-
-%% PLOT
-
-bars = bar(groupedperfs,'FaceColor','flat', 'BarWidth',1, 'EdgeColor', 'w')
-hold on
-
-% assigning colours to bars (to match layerwise plots)
-cm = bone(5);
-untrained_unfit_col = cm(4,:);
-bars(1).CData = untrained_unfit_col;
-untrained_fit_col = cm(3,:);
-bars(2).CData = untrained_fit_col;
-cm = parula(5);
-trained_unfit_col = cm(2,:);
-bars(3).CData = trained_unfit_col;
-trained_fit_col = cm(1,:);
-bars(4).CData = trained_fit_col;
+figure(1)
 
 % noise ceiling first in drawing order
-patch([0 0 length(trained_names)+1 length(trained_names)+1],[lowceil, uppceil, uppceil, lowceil],[0.5, 0.5, 0.5],'edgecolor','none','FaceAlpha',0.5)
-hold on
+patch([0 0 size(component_results.raw,2)+1 size(component_results.raw,2)+1],[lowceil, uppceil, uppceil, lowceil],[0.5, 0.5, 0.5],'edgecolor','none','FaceAlpha',0.5)
+hold on 
 
-% Calculating the width for each bar group for proper error bar placement
-ngroups = size(groupedperfs, 1);
-nbars = size(groupedperfs, 2);
-groupwidth = min(0.8, nbars/(nbars + 1.5));
-for i = 1:nbars
-    barx = (1:ngroups) - groupwidth/2 + (2*i-1) * groupwidth / (2*nbars);
-    errorbar(barx, groupedperfs(:,i), groupedstds(:,i), 'color','k','LineWidth',2,'LineStyle','none','CapSize',0);
-end
+% barchart of mean and standard deviation across bootstraps for each model component
+bar(mean(component_results.raw,1),'FaceColor','flat', 'BarWidth',1, 'EdgeColor', 'w')
+errorbar([1:size(component_results.raw,2)], mean(component_results.raw,1), std(component_results.raw,1), 'color','k','LineWidth',2,'LineStyle','none','CapSize',0);
 
 % aesthetics
 box off
-xlim([0.5,length(trained_names)+0.5])
-ylim([0, uppceil+0.08])
-xticks(1:length(trained_names))
-xticklabels(pretty_names);
+xlim([0.5,size(component_results.raw,2)+0.5])
+ylim([0, uppceil+0.1])
+xticks(1:length(component_names))
+xticklabels(component_names);
 xtickangle(45);
-legend('untrained + unfitted', 'untrained + fitted', 'trained + unfitted', 'trained + fitted', 'Box', 'on', 'EdgeColor', 'w', 'Position', [0.17 0.77 0.2 0.1]);
 set(gcf,'color','w');
 set(gcf,'Position',[100 100 900 650])
 set(gca,'FontSize',18);
-% title('Combined performance of all layers for each network');
-ylabel({'\fontsize{16}RDM correlation with V1';'\fontsize{12}(Spearman)'});
+title('Performance of each model component');
+ylabel({'\fontsize{16}RDM correlation with hIT';'\fontsize{12}(Spearman)'});
 
-%% statistical test indicators
+% PLOT 1: Statistical test indicators
 
-thresh = 0.05; % uncorrected for now
+thresh = 0.05; % uncorrected for now; could define Bonferroni or other correction
 
-% 1. each model vs lower bound of noise ceiling for trained and fitted nets
-% (only ones close to noise ceiling)
-diffs = repmat(ceiling_results.lower,[1, size(trainednetperfs_fitted,2)])-trainednetperfs_fitted;
+% Test 1: each component vs zero
+% (does this model explain significant variance in the data?)
+diffs = component_results.raw; % diff from zero is just the performance itself
 for i = 1:size(diffs,2)
-    ci = quantile(diffs(:,i), [thresh, 1-thresh])
+    % since we have a bootstrap distribution, the 95% confidence interval
+    % is simply the centre 95% of the distribution:
+    ci = quantile(diffs(:,i), [thresh/2, 1-thresh/2])
+    % draw asterisk at base of bar if significantly better than zero
+    % (i.e. if confidence interval is entirely above zero)
     if ci(1) > 0
-        % since nearly all models are significantly below noise ceiling,
-        % it's often neater to only indicate `ns` results, hence this line
-        % commented out by default
-%         text(barx(i)-0.1, lowceil+0.03, '*', 'FontSize',14);
+        text(i, 0.03, '*', 'FontSize',14);
     else
-        text(barx(i)-0.1, lowceil+0.03, 'ns', 'FontSize',14);
+        text(i, 0.03, 'ns', 'FontSize',14);
     end
 end
 
-%% model comparison matrix of all trained and fitted versions
-
-% each trained and fitted model vs every other
-pairwise_sigs = zeros(length(trained_names),length(trained_names));
-count=4;
-for m = 1:length(trained_names)
-    for n = 1:length(trained_names)
-        if m > n
-            diffs = trainednetperfs_fitted(:,m) - trainednetperfs_fitted(:,n);
-            ci = quantile(diffs, [thresh, 1-thresh]);
-            % check whether CI contains 0 to either side
-            if m ~= n
-                if ~((ci(1) < 0) && (0 < ci(2)))
-                    pairwise_sigs(m,n) = 1;
-                end
-            end
-        end
+% Test 2: each component vs lower bound of noise ceiling
+% (does this model do significantly worse than can be achieved by
+% predicting each subjects' data from that of other subjects?)
+% nb Can't draw any strong conclusion from a non-significant result - 
+% may be non-significant either because it is indeed very close to the 
+% noise ceiling, or else because the data are noisy / test under-powered. 
+diffs = repmat(ceiling_results.lower,[1, size(component_results.raw,2)])-component_results.raw;
+for i = 1:size(diffs,2)
+    % since we have a bootstrap distribution, the 95% confidence interval
+    % is simply the centre 95% of the difference distribution:
+    ci = quantile(diffs(:,i), [thresh/2, 1-thresh/2])
+    % draw asterisk at bottom of noise ceiling if significantly worse than
+    % lower bound of noise ceiling
+    if ci(1) > 0
+        text(i, lowceil+0.03, '*', 'FontSize',14);
+    else
+        text(i, lowceil+0.03, 'ns', 'FontSize',14);
     end
 end
 
-colormap('copper')
-imagesc(pairwise_sigs)
-axis('square')
+%% PLOT 2: performance of uniformly and optimally reweighted components
 
-%% within-architecture comparisons:
+figure(2)
 
-% eg each trained unfitted model vs its untrained unfitted version
-thresh = 0.05;%/length(trained_names);
-sigs = zeros(1,length(trained_names));
-count = 1;
-for m = 1:length(trained_names)
-    diffs = trainednetperfs(:,m) - trainednetperfs_fitted(:,m);
-    ci = quantile(diffs, [thresh, 1-thresh]);
-    % check whether CI contains 0 to either side
-    if ~((ci(1) < 0) && (0 < ci(2)))
-        sigs(m) = 1;
-    end
-    figure(count)
-    hist(diffs,50)
-    hold on
-    plot([ci(1),ci(1)],[0,60])
-    plot([ci(2),ci(2)],[0,60])
-    title(trained_names{m})
-    drawnow
-    count = count+1;
-end
+% noise ceiling first in drawing order
+patch([0 0 3 3],[lowceil, uppceil, uppceil, lowceil],[0.5, 0.5, 0.5],'edgecolor','none','FaceAlpha',0.5)
+hold on 
 
-sigs
+% barchart of mean and standard deviation across bootstraps for each of the
+% two versions (uniformly and optimally reweighted model components)
+bar([mean(combined_results.raw_unif,1), mean(combined_results.raw_fitted,1)],'FaceColor','flat', 'BarWidth',1, 'EdgeColor', 'w')
+errorbar([1:2], [mean(combined_results.raw_unif,1), mean(combined_results.raw_fitted,1)], [std(combined_results.raw_unif,1), std(combined_results.raw_fitted,1)], 'color','k','LineWidth',2,'LineStyle','none','CapSize',0);
 
-%% scatterplot
-figure(4)
-cm = parula(5);
-scatter(nanmean(randomnetperfs),nanmean(trainednetperfs),200, 'MarkerFaceColor', cm(2,:), 'MarkerFaceAlpha',0.7, 'MarkerEdgeColor', cm(2,:), 'LineWidth', 1.5);
-
-hold on
-patch([0 0 uppceil+0.1 uppceil+0.1],[lowceil, uppceil, uppceil, lowceil],[0.5, 0.5, 0.5],'edgecolor','none','FaceAlpha',0.5,'HandleVisibility','off')
-patch([lowceil, uppceil, uppceil, lowceil],[0 0 uppceil+0.1 uppceil+0.1],[0.5, 0.5, 0.5],'edgecolor','none','FaceAlpha',0.5,'HandleVisibility','off')
-% xlim([0, uppceil+0.02])
-% ylim([0, uppceil+0.02])
-% xticks([0:0.1:0.5])
-% yticks([0:0.1:0.5])
-% axis square; box off
-% set(gcf,'color','w');
-% set(gcf,'Position',[200 200 500 500])
-% set(gca,'FontSize',14);
-% xlabel('hIT correlation of untrained network')
-% ylabel('hIT correlation of trained network')
-
-% if we want to know the correlation:
-[r,p] = corr([nanmean(randomnetperfs);nanmean(trainednetperfs)]')
-% %% scatterplot
-% figure(5)
-% hold on 
-cm = parula(5);
-scatter(nanmean(randomnetperfs_fitted),nanmean(trainednetperfs_fitted),200, 'MarkerFaceColor', cm(1,:), 'MarkerFaceAlpha',0.7, 'MarkerEdgeColor', cm(1,:), 'LineWidth', 1.5);
-
-plot([0,1],[0,1],'k--')
-
-xlim([0, uppceil+0.02])
-ylim([0, uppceil+0.02])
-xticks([0:0.1:0.5])
-yticks([0:0.1:0.5])
-axis square; box off
+% aesthetics
+box off
+xlim([0.5,2+0.5])
+ylim([0, uppceil+0.1])
+xticks(1:2)
+xticklabels({'uniformly weighted','optimally reweighted'});
+xtickangle(45);
 set(gcf,'color','w');
-set(gcf,'Position',[200 200 500 500])
-set(gca,'FontSize',16);
-% legend({'unfitted','fitted'},'Box', 'on', 'EdgeColor', 'w', 'Position', [0.17 0.72 0.2 0.1])
-xlabel('correlation of untrained network')
-ylabel('correlation of trained network')
+set(gcf,'Position',[100 100 650 650])
+set(gca,'FontSize',18);
+title('Performance of combined model components');
+ylabel({'\fontsize{16}RDM correlation with hIT';'\fontsize{12}(Spearman)'});
 
-% if we want to know the correlation:
-[r,p] = corr([nanmean(randomnetperfs_fitted);nanmean(trainednetperfs_fitted)]')
+% PLOT 2: Statistical test indicators
 
+thresh = 0.05; % uncorrected for now; could define Bonferroni or other correction
 
-%% Permutation test of variability among fitted vs unfitted models
-
-pairdists_trainednetperfs = pdist(mean(trainednetperfs)');
-pairdists_trainednetperfs_fitted = pdist(mean(trainednetperfs_fitted)');
-[p, observeddifference, effectsize] = permutationTest(pairdists_trainednetperfs, pairdists_trainednetperfs_fitted, 1000, 'plotresult', 1)
-
-%% Equivalence test of differences between trained and fitted models
-% relative to spread of lower noise ceiling
-
-centred_lowceil = ceiling_results.lower - mean(ceiling_results.lower);
-d = quantile(centred_lowceil, [0.05/2, 1-0.05/2]);
-
-for m = 1:size(trainednetperfs_fitted,2)
-    for n = 1:size(trainednetperfs_fitted,2)
-        if m > n % i.e. only both testing unique model pairs
-            %The null hypothesis is rejected if max([p1, p2]) > alpha, or if the
-            %confidence interval falls outside of the equivalence interval
-            [p1, p2, CI] = TOST(trainednetperfs_fitted(:,m), trainednetperfs_fitted(:,n), d(1), d(2), 0.05/36)
-%             [p1, p2, CI] = TOST(trainednetperfs(:,m), trainednetperfs(:,n), d(1), d(2), 0.05/36)
-        end
-    end
+% Test 1: each version of the combined model vs zero
+% (does this model explain significant variance in the data?)
+diffs = combined_results.raw_unif; % diff from zero is just the performance itself
+ci = quantile(diffs, [thresh/2, 1-thresh/2])
+% draw result for first bar (uniform weighting)
+if ci(1) > 0
+    text(1, 0.03, '*', 'FontSize',14);
+else
+    text(1, 0.03, 'ns', 'FontSize',14);
 end
 
+% now do same for second bar (optimal reweighting)
+diffs = combined_results.raw_fitted; % diff from zero is just the performance itself
+ci = quantile(diffs, [thresh/2, 1-thresh/2])
+if ci(1) > 0
+    text(2, 0.03, '*', 'FontSize',14);
+else
+    text(2, 0.03, 'ns', 'FontSize',14);
+end
+
+% Test 2: each version of the combined model vs lower bound of noise ceiling
+% (does this model do significantly worse than can be achieved by
+% predicting each subjects' data from that of other subjects?)
+% nb Can't draw any strong conclusion from a non-significant result - 
+% may be non-significant either because it is indeed very close to the 
+% noise ceiling, or else because the data are noisy / test under-powered. 
+diffs = ceiling_results.lower-combined_results.raw_unif;
+ci = quantile(diffs, [thresh/2, 1-thresh/2]);
+% draw result for first bar (uniform weighting)
+if ci(1) > 0
+    text(1, lowceil+0.03, '*', 'FontSize',14);
+else
+    text(1, lowceil+0.03, 'ns', 'FontSize',14);
+end
+    
+% now do same for second bar (optimal reweighting)
+diffs = ceiling_results.lower-combined_results.raw_fitted;
+ci = quantile(diffs, [thresh/2, 1-thresh/2]);
+% draw result for first bar (uniform weighting)
+if ci(1) > 0
+    text(2, lowceil+0.03, '*', 'FontSize',14);
+else
+    text(2, lowceil+0.03, 'ns', 'FontSize',14);
+end
