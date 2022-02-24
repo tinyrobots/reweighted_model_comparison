@@ -1,4 +1,4 @@
-%% Example barchart and significance tests using output from cross-validated
+%% Example barchart plot and significance tests using output from cross-validated
 % reweighting procedure. Assumes a results folder containing:
 % -- bootstrap_output_ceilings.mat
 % -- bootstrap_output_combined.mat
