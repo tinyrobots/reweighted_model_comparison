@@ -17,7 +17,9 @@ tmp_ceiling_lower = zeros([highlevel_options.boot_options.nboots,1]);
 tmp_ceiling_upper = zeros([highlevel_options.boot_options.nboots,1]);
 
 parfor boot = 1:highlevel_options.boot_options.nboots % can change to `for` during debugging etc
-    fprintf(' %d ... ',boot)
+    if mod(boot,10)==0
+        disp(boot)
+    end
     
     if highlevel_options.boot_options.boot_conds == true
         cond_ids = datasample(1:size(refRDMs,1),size(refRDMs,1),'Replace',true);
