@@ -16,7 +16,7 @@ tmp_wholenet_raw_unif = zeros([highlevel_options.boot_options.nboots,1]);
 tmp_ceiling_lower = zeros([highlevel_options.boot_options.nboots,1]);
 tmp_ceiling_upper = zeros([highlevel_options.boot_options.nboots,1]);
 
-for boot = 1:highlevel_options.boot_options.nboots % parfor
+parfor boot = 1:highlevel_options.boot_options.nboots % can change to `for` during debugging etc
     fprintf(' %d ... ',boot)
     
     if highlevel_options.boot_options.boot_conds == true
