@@ -2,10 +2,13 @@ function [layerwise_oneboot, ceiling_oneboot, wholenet_oneboot] = FUNC_reweighti
 
 % Performs a single bootstrap sample in which multiple crossvalidation
 % folds are performed. On each crossval fold, data are split into training 
-% and test portions, models are fitted to training portion, and
-% tested on test portion. Intended to be embedded within a bootstrap loop,
-% which supplies the indices of the selected subjects and conditions on
-% this bootstrap
+% and test portions, model components are linearly combined to best predict
+% training portion, and then this same weighted combination is tested on 
+% the test portion. 
+
+% Intended to be embedded within a bootstrap loop, which supplies the 
+% indices of the selected subjects and conditions on this bootstrap 
+% (i.e. expecting to be called from `FUNC_bootstrap_wrapper.m`)
 
 % nb. naming and comments assume that the multiple model components are
 % different layers within a neural network - but they could be different
@@ -19,16 +22,8 @@ nSubjs = size(refRDMs,3);
 %% Cross-validation procedure
 
 % create temporary storages for per-crossval fold results for each estimate
-loop_store_layerwise.fittedPCA = zeros([rw_options.nCVs,length(model_RDMs)]); % one column per layer x nCV rows
-loop_store_layerwise.fittedRandCA = zeros([rw_options.nCVs,length(model_RDMs)]); % one column per layer x nCV rows
-loop_store_layerwise.unifPCA = zeros([rw_options.nCVs,length(model_RDMs)]); % one column per layer x nCV rows
-loop_store_layerwise.unifRandCA = zeros([rw_options.nCVs,length(model_RDMs)]); % one column per layer x nCV rows
 loop_store_layerwise.raw = zeros([rw_options.nCVs,length(model_RDMs)]); % one column per layer x nCV rows
 
-loop_store_wholenet.fittedPCA_fitted = zeros([rw_options.nCVs,1]); % single column with nCV rows
-loop_store_wholenet.fittedRandCA_fitted = zeros([rw_options.nCVs,1]); % single column with nCV rows
-loop_store_wholenet.unifPCA_fitted = zeros([rw_options.nCVs,1]); % single column with nCV rows
-loop_store_wholenet.unifRandCA_fitted = zeros([rw_options.nCVs,1]); % single column with nCV rows
 loop_store_wholenet.raw_fitted = zeros([rw_options.nCVs,1]); % single column with nCV rows
 loop_store_wholenet.raw_unif = zeros([rw_options.nCVs,1]); % single column with nCV rows
 
@@ -105,7 +100,7 @@ for loop = 1:rw_options.nCVs
     % metric see RSA Toolbox for advice on how to transform data before
     % averaging to create the "best fit" model for the upper noise ceiling.
     for s = 1:size(dataRDMs_test_all_subjs,3)
-        dataRDMs_test_all_subjs(:,:,s) = squareform(tiedrank(squareform(dataRDMs_test_all_subjs(:,:,s))));
+        dataRDMs_test_all_subjs(:,:,s) = tiedrank(dataRDMs_test_all_subjs(:,:,s));
     end
     % Take the average, since we only use this RDM for noise ceiling
     % calculations:
@@ -134,51 +129,10 @@ for loop = 1:rw_options.nCVs
     dataRDMs_test_all_subjs_ltv = dataRDMs_test_all_subjs_ltv(~isnan(dataRDMs_test_all_subjs_ltv));
     dataRDMs_test_train_subjs_ltv = dataRDMs_test_train_subjs_ltv(~isnan(dataRDMs_test_train_subjs_ltv));
 
-    %% Begin layerwise calculations:
-    perlayer_PCA_fittedRDMs_train = []; % store for per-layer weighted RDMs for train split stimuli
-    perlayer_PCA_fittedRDMs_test = []; % store for per-layer weighted RDMs for test split stimuli
-
-    perlayer_RandCA_fittedRDMs_train = [];
-    perlayer_RandCA_fittedRDMs_test = [];
-    
+    %% 2. calculate performace of each model component individually #####################
+        
     for layer = 1:length(model_RDMs)
         
-        %% 2. calculate performace of fixed models for this layer #####################
-        
-        % TODO: Could replace these repetitive calls with a
-        % "format_and_evaluate" function.
-        % ------------------
-        % A. UNIFORM PCA
-        unifPCA_test = model_RDMs{layer}.unifPCA.RDM;
-        unifPCA_test(logical(eye(size(unifPCA_test,1)))) = NaN; % put NaNs in diagonal
-        unifPCA_test = unifPCA_test(c_sel_test,c_sel_test); % resample rows and columns
-        unifPCA_test(logical(eye(size(unifPCA_test,1)))) = 0; % put zeros in diagonal
-        unifPCA_test_ltv = squareform(unifPCA_test);
-        unifPCA_test_ltv = unifPCA_test_ltv(~isnan(unifPCA_test_ltv)); % drop NaNs
-        clear tm % very temp storage
-        for test_subj = 1:size(dataRDMs_test_ltv,1)
-            tm(test_subj) = corr(unifPCA_test_ltv', dataRDMs_test_ltv(test_subj,:)', 'Type', 'Spearman');
-        end
-        % get means of the correlations over held-out subjects
-        loop_store_layerwise.unifPCA(loop, layer) = mean(tm); 
-        
-        % ------------------
-        % B. UNIFORM RAND CA
-        unifRandCA_test = model_RDMs{layer}.unifRandCA.RDM;
-        unifRandCA_test(logical(eye(size(unifRandCA_test,1)))) = NaN; % put NaNs in diagonal
-        unifRandCA_test = unifRandCA_test(c_sel_test,c_sel_test); % resample rows and columns
-        unifRandCA_test(logical(eye(size(unifRandCA_test,1)))) = 0; % put zeros in diagonal
-        unifRandCA_test_ltv = squareform(unifRandCA_test);
-        unifRandCA_test_ltv = unifRandCA_test_ltv(~isnan(unifRandCA_test_ltv)); % drop NaNs
-        clear tm % very temp storage
-        for test_subj = 1:size(dataRDMs_test_ltv,1)
-            tm(test_subj) = corr(unifRandCA_test_ltv', dataRDMs_test_ltv(test_subj,:)', 'Type', 'Spearman');
-        end
-        % get means of the correlations over held-out subjects
-        loop_store_layerwise.unifRandCA(loop, layer) = mean(tm); 
-        
-        % ------------------
-        % C. RAW
         rawRDM_test = model_RDMs{layer}.rawRDM.RDM;
         rawRDM_test(logical(eye(size(rawRDM_test,1)))) = NaN; % put NaNs in diagonal
         rawRDM_test = rawRDM_test(c_sel_test,c_sel_test); % resample rows and columns
@@ -192,121 +146,13 @@ for loop = 1:rw_options.nCVs
         end
         % get means of the correlations over held-out subjects
         loop_store_layerwise.raw(loop, layer) = mean(tm); 
-        % ------------------
-        
-        %% 3. calculate performance of reweighted PCAs #####################
-        % for each layer, gather its component RDMs, fit weights, and store a
-        % reweighted predicted RDM for the test stimuli
-        clear modelRDMs_train_ltv modelRDMs_test_ltv
-        for component = 1:length(model_RDMs{layer}.pcaRDMs)
-            cModelRDM_train = model_RDMs{layer}.pcaRDMs(component).RDM;
-            cModelRDM_train(logical(eye(size(cModelRDM_train,1)))) = NaN; % put NaNs in diagonal
-            cModelRDM_train = cModelRDM_train(c_sel_train,c_sel_train); % resample rows and columns
-            cModelRDM_train(logical(eye(size(cModelRDM_train,1)))) = 0; % put zeros in diagonal
-            modelRDMs_train_ltv(:,component) = squareform(cModelRDM_train);
 
-            cModelRDM_test = model_RDMs{layer}.pcaRDMs(component).RDM;
-            cModelRDM_test(logical(eye(size(cModelRDM_test,1)))) = NaN; % put NaNs in diagonal
-            cModelRDM_test = cModelRDM_test(c_sel_test,c_sel_test); % resample rows and columns
-            cModelRDM_test(logical(eye(size(cModelRDM_test,1)))) = 0; % put zeros in diagonal
-            modelRDMs_test_ltv(:,component) = squareform(cModelRDM_test);
-        end
-
-        % do regression to estimate layer weights
-
-        % dropping same-image-pair entries, as we have done for the human data
-        modelRDMs_train_ltv = modelRDMs_train_ltv(all(~isnan(modelRDMs_train_ltv),2),:); % as before, but with rows
-        modelRDMs_test_ltv = modelRDMs_test_ltv(all(~isnan(modelRDMs_test_ltv),2),:);
-
-        % main call to fitting library - this could be replaced with
-        % glmnet for ridge regression, etc., but GLMnet is not compiled
-        % to work in Matlab post ~2014ish.
-        weights = lsqnonneg(double(modelRDMs_train_ltv), double(dataRDM_train_ltv'));
-
-        % combine each layer in proportion to the estimated weights
-        PCA_model_train_ltv_weighted = modelRDMs_train_ltv*weights;
-        PCA_model_test_ltv_weighted = modelRDMs_test_ltv*weights;
-        
-        perlayer_PCA_fittedRDMs_train = [perlayer_PCA_fittedRDMs_train, PCA_model_train_ltv_weighted]; 
-        perlayer_PCA_fittedRDMs_test = [perlayer_PCA_fittedRDMs_test, PCA_model_test_ltv_weighted]; 
-    
-        % calculate performance on the held out subjects and images
-
-        % Now we have added the reweighted version to our list of models, 
-        % evaluate each one, along with the noise ceiling
-        % - need to do this individually against each of the test Ss
-        % Note that if bootstrapping Ss, the test subjects may not be
-        % unique, but may contain duplicates. This equates to weighting
-        % each subject's data according to how frequently it occurs in this
-        % bootstrapped sample.
-        clear tm % very temp storage
-        for test_subj = 1:size(dataRDMs_test_ltv,1)
-            tm(test_subj) = corr(PCA_model_test_ltv_weighted, dataRDMs_test_ltv(test_subj,:)', 'Type', 'Spearman');
-        end
-        % get means of the correlations over held-out subjects
-        loop_store_layerwise.fittedPCA(loop, layer) = mean(tm); 
-
-
-        %% 4. calculate performance of reweighted RandCAs #####################
-        % for each layer, gather its component RDMs, fit weights, and store a
-        % reweighted predicted RDM for the test stimuli
-        clear modelRDMs_train_ltv modelRDMs_test_ltv % reuse generic names
-        for component = 1:length(model_RDMs{layer}.randcaRDMs)
-            cModelRDM_train = model_RDMs{layer}.randcaRDMs(component).RDM;
-            cModelRDM_train(logical(eye(size(cModelRDM_train,1)))) = NaN; % put NaNs in diagonal
-            cModelRDM_train = cModelRDM_train(c_sel_train,c_sel_train); % resample rows and columns
-            cModelRDM_train(logical(eye(size(cModelRDM_train,1)))) = 0; % put zeros in diagonal
-            modelRDMs_train_ltv(:,component) = squareform(cModelRDM_train);
-
-            cModelRDM_test = model_RDMs{layer}.randcaRDMs(component).RDM;
-            cModelRDM_test(logical(eye(size(cModelRDM_test,1)))) = NaN; % put NaNs in diagonal
-            cModelRDM_test = cModelRDM_test(c_sel_test,c_sel_test); % resample rows and columns
-            cModelRDM_test(logical(eye(size(cModelRDM_test,1)))) = 0; % put zeros in diagonal
-            modelRDMs_test_ltv(:,component) = squareform(cModelRDM_test);
-        end
-
-        % do regression to estimate layer weights
-
-        % dropping same-image-pair entries, as we have done for the human data
-        modelRDMs_train_ltv = modelRDMs_train_ltv(all(~isnan(modelRDMs_train_ltv),2),:); % as before, but with rows
-        modelRDMs_test_ltv = modelRDMs_test_ltv(all(~isnan(modelRDMs_test_ltv),2),:);
-
-        % main call to fitting library - this could be replaced with
-        % glmnet for ridge regression, etc., but GLMnet is not compiled
-        % to work in Matlab post ~2014ish.
-        weights = lsqnonneg(double(modelRDMs_train_ltv), double(dataRDM_train_ltv'));
-
-        % combine each layer in proportion to the estimated weights
-        RandCA_model_train_ltv_weighted = modelRDMs_train_ltv*weights;
-        RandCA_model_test_ltv_weighted = modelRDMs_test_ltv*weights;
-        
-        perlayer_RandCA_fittedRDMs_train = [perlayer_RandCA_fittedRDMs_train, RandCA_model_train_ltv_weighted]; 
-        perlayer_RandCA_fittedRDMs_test = [perlayer_RandCA_fittedRDMs_test, RandCA_model_test_ltv_weighted]; 
-        
-        % calculate performance on the held out subjects and images
-
-        % Now we have added the reweighted version to our list of models, 
-        % evaluate each one, along with the noise ceiling
-        % - need to do this individually against each of the test Ss
-        % Note that if bootstrapping Ss, the test subjects may not be
-        % unique, but may contain duplicates. This equates to weighting
-        % each subject's data according to how frequently it occurs in this
-        % bootstrapped sample.
-        clear tm % very temp storage
-        for test_subj = 1:size(dataRDMs_test_ltv,1)
-            tm(test_subj) = corr(RandCA_model_test_ltv_weighted, dataRDMs_test_ltv(test_subj,:)', 'Type', 'Spearman');
-        end
-        % get means of the correlations over held-out subjects
-        loop_store_layerwise.fittedRandCA(loop, layer) = mean(tm);
-        
     end
     
+    %% 3. perform reweighting to estimate performance of all components combined #####################
     
-    %% 5. Now that we have per-layer fits, estimate whole net fits #####################
-    
-    % ---------
-    % A. Fixed raw fullspace features, uniformly weighted...
-    % ...create uniformly-weighted RDM 
+    % A. First construct a "baseline" combined model, by combining all
+    % components using equal uniform weights:
     raw_unif = zeros([62,62]); % hardcoded assuming trans62 stimulus set
     for layer = 1:length(model_RDMs)
         raw_unif = raw_unif + (1/length(model_RDMs)).*model_RDMs{layer}.rawRDM.RDM;
@@ -318,14 +164,16 @@ for loop = 1:rw_options.nCVs
     raw_unif_test_ltv = squareform(raw_unif_test);
     raw_unif_test_ltv = raw_unif_test_ltv(~isnan(raw_unif_test_ltv)); % drop NaNs
     clear tm % very temp storage
+    % calculate performance on the test subjects and images
     for test_subj = 1:size(dataRDMs_test_ltv,1)
         tm(test_subj) = corr(raw_unif_test_ltv', dataRDMs_test_ltv(test_subj,:)', 'Type', 'Spearman');
     end
     % get means of the correlations over held-out subjects
     loop_store_wholenet.raw_unif(loop) = mean(tm);
     
-    % ---------
-    % B. Raw fullspace features, fitted now to data...
+    % B. Reweighting. Gather the component RDMs, fit weights using the train
+    % portion, and use them to calculate a reweighted predicted RDM 
+    % that we will evaluate on the test portion
     clear modelRDMs_train_ltv modelRDMs_test_ltv % reuse generic names
     for layer = 1:length(model_RDMs)
         cModelRDM_train = model_RDMs{layer}.rawRDM.RDM;
@@ -345,7 +193,7 @@ for loop = 1:rw_options.nCVs
     modelRDMs_train_ltv = modelRDMs_train_ltv(all(~isnan(modelRDMs_train_ltv),2),:); % as before, but with rows
     modelRDMs_test_ltv = modelRDMs_test_ltv(all(~isnan(modelRDMs_test_ltv),2),:);
     % main call to fitting library - this could be replaced with
-    % glmnet for ridge regression, etc., but GLMnet is not compiled
+    % glmnet to allow for ridge regression, etc., but GLMnet is not compiled
     % to work in Matlab post ~2014ish.
     weights = lsqnonneg(double(modelRDMs_train_ltv), double(dataRDM_train_ltv'));
     % combine each layer in proportion to the estimated weights
@@ -358,115 +206,7 @@ for loop = 1:rw_options.nCVs
     % get means of the correlations over held-out subjects
     loop_store_wholenet.raw_fitted(loop) = mean(tm);
     
-    
-    % ---------
-    % C. Uniformly weighted PCs, fitted now to data...
-    clear modelRDMs_train_ltv modelRDMs_test_ltv % reuse generic names
-    for layer = 1:length(model_RDMs)
-        cModelRDM_train = model_RDMs{layer}.unifPCA.RDM;
-        cModelRDM_train(logical(eye(size(cModelRDM_train,1)))) = NaN; % put NaNs in diagonal
-        cModelRDM_train = cModelRDM_train(c_sel_train,c_sel_train); % resample rows and columns
-        cModelRDM_train(logical(eye(size(cModelRDM_train,1)))) = 0; % put zeros in diagonal
-        modelRDMs_train_ltv(:,layer) = squareform(cModelRDM_train);
-
-        cModelRDM_test = model_RDMs{layer}.unifPCA.RDM;
-        cModelRDM_test(logical(eye(size(cModelRDM_test,1)))) = NaN; % put NaNs in diagonal
-        cModelRDM_test = cModelRDM_test(c_sel_test,c_sel_test); % resample rows and columns
-        cModelRDM_test(logical(eye(size(cModelRDM_test,1)))) = 0; % put zeros in diagonal
-        modelRDMs_test_ltv(:,layer) = squareform(cModelRDM_test);
-    end
-    % do regression to estimate layer weights
-    % dropping same-image-pair entries, as we have done for the human data
-    modelRDMs_train_ltv = modelRDMs_train_ltv(all(~isnan(modelRDMs_train_ltv),2),:); % as before, but with rows
-    modelRDMs_test_ltv = modelRDMs_test_ltv(all(~isnan(modelRDMs_test_ltv),2),:);
-    % main call to fitting library - this could be replaced with
-    % glmnet for ridge regression, etc., but GLMnet is not compiled
-    % to work in Matlab post ~2014ish.
-    weights = lsqnonneg(double(modelRDMs_train_ltv), double(dataRDM_train_ltv'));
-    % combine each layer in proportion to the estimated weights
-    this_model_test_ltv_weighted = modelRDMs_test_ltv*weights;
-    % calculate performance on the held out subjects and images
-    clear tm % very temp storage
-    for test_subj = 1:size(dataRDMs_test_ltv,1)
-        tm(test_subj) = corr(this_model_test_ltv_weighted, dataRDMs_test_ltv(test_subj,:)', 'Type', 'Spearman');
-    end
-    % get means of the correlations over held-out subjects
-    loop_store_wholenet.unifPCA_fitted(loop) = mean(tm);
-    
-    
-    % ---------
-    % D. Uniformly weighted RandCAs, fitted now to data...
-    clear modelRDMs_train_ltv modelRDMs_test_ltv % reuse generic names
-    for layer = 1:length(model_RDMs)
-        cModelRDM_train = model_RDMs{layer}.unifRandCA.RDM;
-        cModelRDM_train(logical(eye(size(cModelRDM_train,1)))) = NaN; % put NaNs in diagonal
-        cModelRDM_train = cModelRDM_train(c_sel_train,c_sel_train); % resample rows and columns
-        cModelRDM_train(logical(eye(size(cModelRDM_train,1)))) = 0; % put zeros in diagonal
-        modelRDMs_train_ltv(:,layer) = squareform(cModelRDM_train);
-
-        cModelRDM_test = model_RDMs{layer}.unifRandCA.RDM;
-        cModelRDM_test(logical(eye(size(cModelRDM_test,1)))) = NaN; % put NaNs in diagonal
-        cModelRDM_test = cModelRDM_test(c_sel_test,c_sel_test); % resample rows and columns
-        cModelRDM_test(logical(eye(size(cModelRDM_test,1)))) = 0; % put zeros in diagonal
-        modelRDMs_test_ltv(:,layer) = squareform(cModelRDM_test);
-    end
-    % do regression to estimate layer weights
-    % dropping same-image-pair entries, as we have done for the human data
-    modelRDMs_train_ltv = modelRDMs_train_ltv(all(~isnan(modelRDMs_train_ltv),2),:); % as before, but with rows
-    modelRDMs_test_ltv = modelRDMs_test_ltv(all(~isnan(modelRDMs_test_ltv),2),:);
-    % main call to fitting library - this could be replaced with
-    % glmnet for ridge regression, etc., but GLMnet is not compiled
-    % to work in Matlab post ~2014ish.
-    weights = lsqnonneg(double(modelRDMs_train_ltv), double(dataRDM_train_ltv'));
-    % combine each layer in proportion to the estimated weights
-    this_model_test_ltv_weighted = modelRDMs_test_ltv*weights;
-    % calculate performance on the held out subjects and images
-    clear tm % very temp storage
-    for test_subj = 1:size(dataRDMs_test_ltv,1)
-        tm(test_subj) = corr(this_model_test_ltv_weighted, dataRDMs_test_ltv(test_subj,:)', 'Type', 'Spearman');
-    end
-    % get means of the correlations over held-out subjects
-    loop_store_wholenet.unifRandCA_fitted(loop) = mean(tm);
-    
-    % ---------
-    % E. Layer-fitted PCAs, additionally fitted across layers...
-    clear modelRDMs_train_ltv modelRDMs_test_ltv % reuse generic names
-    for layer = 1:length(model_RDMs)
-        modelRDMs_train_ltv(:,layer) = perlayer_PCA_fittedRDMs_train(:,layer);
-        modelRDMs_test_ltv(:,layer) = perlayer_PCA_fittedRDMs_test(:,layer);
-    end
-    % do regression to estimate layer weights
-    weights = lsqnonneg(double(modelRDMs_train_ltv), double(dataRDM_train_ltv'));
-    % combine each layer in proportion to the estimated weights
-    this_model_test_ltv_weighted = modelRDMs_test_ltv*weights;
-    % calculate performance on the held out subjects and images:
-    clear tm % very temp storage
-    for test_subj = 1:size(dataRDMs_test_ltv,1)
-        tm(test_subj) = corr(this_model_test_ltv_weighted, dataRDMs_test_ltv(test_subj,:)', 'Type', 'Spearman');
-    end
-    % get means of the correlations over held-out subjects
-    loop_store_wholenet.fittedPCA_fitted(loop) = mean(tm);
-    
-    % ---------
-    % F. Layer-fitted RandCAs, additionally fitted across layers...
-    clear modelRDMs_train_ltv modelRDMs_test_ltv % reuse generic names
-    for layer = 1:length(model_RDMs)
-        modelRDMs_train_ltv(:,layer) = perlayer_RandCA_fittedRDMs_train(:,layer);
-        modelRDMs_test_ltv(:,layer) = perlayer_RandCA_fittedRDMs_test(:,layer);
-    end
-    % do regression to estimate layer weights
-    weights = lsqnonneg(double(modelRDMs_train_ltv), double(dataRDM_train_ltv'));
-    % combine each layer in proportion to the estimated weights
-    this_model_test_ltv_weighted = modelRDMs_test_ltv*weights;
-    % calculate performance on the held out subjects and images:
-    clear tm % very temp storage
-    for test_subj = 1:size(dataRDMs_test_ltv,1)
-        tm(test_subj) = corr(this_model_test_ltv_weighted, dataRDMs_test_ltv(test_subj,:)', 'Type', 'Spearman');
-    end
-    % get means of the correlations over held-out subjects
-    loop_store_wholenet.fittedRandCA_fitted(loop) = mean(tm);
-    
-    %% 6. Estimate noise ceilings just once #####################
+    %% 4. Estimate noise ceilings #####################
     clear tcl tcu % very temp storages
     for test_subj = 1:size(dataRDMs_test_ltv,1)
         % Model for lower bound = correlation between each subject and mean  
@@ -480,19 +220,11 @@ for loop = 1:rw_options.nCVs
     loop_store_ceilings.lower(loop) = mean(tcl);
     loop_store_ceilings.upper(loop) = mean(tcu);
 
-end % end of crossvalidation loops
+end % end of crossvalidation loop
 
 % average over crossvalidation loops at the end of this bootstrap sample
-layerwise_oneboot.fittedPCA = mean(loop_store_layerwise.fittedPCA);
-layerwise_oneboot.fittedRandCA = mean(loop_store_layerwise.fittedRandCA);
-layerwise_oneboot.unifPCA = mean(loop_store_layerwise.unifPCA);
-layerwise_oneboot.unifRandCA = mean(loop_store_layerwise.unifRandCA);
 layerwise_oneboot.raw = mean(loop_store_layerwise.raw);
 
-wholenet_oneboot.fittedPCA_fitted = mean(loop_store_wholenet.fittedPCA_fitted);
-wholenet_oneboot.fittedRandCA_fitted = mean(loop_store_wholenet.fittedRandCA_fitted);
-wholenet_oneboot.unifPCA_fitted = mean(loop_store_wholenet.unifPCA_fitted);
-wholenet_oneboot.unifRandCA_fitted = mean(loop_store_wholenet.unifRandCA_fitted);
 wholenet_oneboot.raw_fitted = mean(loop_store_wholenet.raw_fitted);
 wholenet_oneboot.raw_unif = mean(loop_store_wholenet.raw_unif);
 

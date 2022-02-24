@@ -1,99 +1,95 @@
-%% Example arguments, using relative paths in 'JOCN_cluster_analyses' 
-% directory to run and save all analyses for the trained Alexnet model:
+%% Example wrapper script, drawing data from ./data_62demo
+% Estimates Representational Similarity between a model and some brain data,
+% where the model has multiple components. The performance of each component
+% separately is estimated, along with the performance of the best linearly-
+% weighted combination of all components. Weighting is done by cross-
+% -validating over both subjects and stimuli. A bootstrap distribution of 
+% performance estimates (over subjects and/or stimuli) is returned.
 
-% fmrifile = '../data/fMRI_RDMs_crossnobis_trans62.mat';
-% pcaRDMdir = '../data/alexnet/rdm/pca/';
-% randcaRDMdir = '../data/alexnet/rdm/randca/';
-% rawRDMdir = '../data/alexnet/rdm/raw/';
-% savedir = '../data/alexnet/results/cluster_test/'; 
-% samplingfile = '../data/sampling_order_JOCN.mat';
-% nCV = 100; % can make smaller for debugging. At least 100 for full run.
-% nboots = 1000; % can make smaller for debugging. At least 1000 for full run.
-% % Then just call: WRAPPER_FUNC_call_for_one_model_jocn(fmrifile, pcaRDMdir, randcaRDMdir, rawRDMdir, savedir, samplingfile, nboots, nCV)
-
-%% Wrapper for fitting models with multiple components using bootstrapped 
-% cross-validated reweighting.
+% Procedure is as used in Storrs et al (2021) https://doi.org/10.1162/jocn_a_01755
 % katherine.storrs@gmail.com
 
-% This version customised for the Journal of Cognitive Neuroscience special
-% issue submission "DNNs With Diverse Architectures All Predict human IT..."
-
-% INPUT ARGUMENTS:
-% Need to provide three sources of data:
-%       fmrifile -- .mat file containing target data to be fitted to 
-%                   (e.g. fMRI-derived RDMs)
-%       pcaRDMdir -- relative path to directory containing PCA-derived RDMs,
-%                   with one .mat file per network layer, each containing
-%                   the 100 principal component RDMs for that layer
-%       randcaRDMdir -- relative path to directory containing RDMs derived
-%                   from random components analysis, with one .mat file per
-%                   network layer, each containing the 100 random component
-%                   RDMs for that layer
-%       rawRDMdir -- relative path to directory containing "raw" RDMs
-%                   (i.e. unfitted full feature-space RDMs) as .mat files,
-%                   each containing the single raw RDM for that layer
+% INPUTS:
+%       fmri_RDM_file -- .mat file containing target data (e.g. fMRI-derived RDMs)
+%                   Expects .mat file to contain a single data matrix of
+%                   dimensions N x N x S, where N is the number of stimuli
+%                   and S is the number of participants/subjects. Each
+%                   entry is the dissimilarity between two stimuli
+%                   for a given subject.
+%       model_RDM_file -- .mat file containing model data
+%                   Expects .mat file to contain a cell array, with M cells,
+%                   one for each of the M model components. Each cell contains 
+%                   a structure with one field named ".rawRDM", within 
+%                   is another structure with two fields:
+%                       .RDM: NxN square Representational Dissimilarity 
+%                          Matrix containing pairwise distances between 
+%                          all N stimuli
+%                       .name: string providing name of this model 
+%                           component (e.g. "Layer 1")
+%                   (nb. Nested structure was to facilitate extension to 
+%                   more complicated analyses where models might have 
+%                   multiple sets of nested components)
 %       savedir -- where to save results
-%       samplingfile -- .mat file containing pre-computed structure
-%                   containing the subject and stimulus bootstrap samples.
-%                   These are pre-assigned so that all models use the same
-%                   bootstrap sampling, and a distribution of differences
-%                   between estimates on each bootstrap can be built up
-%                   allowing statistical comparisons between models as if
-%                   they had all been run within the same bootstrapping
-%                   procedure.
-%       nboots -- number of bootstrap samples to perform (must be equal to
-%                   or less than the number of pre-assigned bootstrap
-%                   samples in `samplingfile`
+%       nboots -- number of bootstrap samples to perform
 %       nCVs -- number of cross-validation folds to perform within each
 %                   bootstrap sample. On each, a test set of subjects and
 %                   stimuli is set aside, the model components are fitted
 %                   on the training split, and evaluated on the remainder
 %
-% OUTPUT ARGUMENTS:
+% OUTPUTS:
 % This script will output and save the following structures:
-%       layerwise_results -- (num_layers x 1) cell array, with each cell 
-%                           containing 1 struct with 5 fields. Each field
-%                           contain an (nboots x 1) vector of bootstrap 
-%                           estimates of the performances of the following
-%                           strategies. 
-%           .fittedPCA -- fitted combination of 100 PCA RDMs
-%           .fittedRANDCA -- fitted combination of 100 random component RDMs
-%           .unifPCA -- unfitted equal weighting of 100 PCA RDMs
-%           .unifRANDCA -- unfitted equal weighting of 100 random comp. RDMs
-%           .raw -- unfitted unweighted single full raw feature RDM of layer
-%
-%       ceiling_results -- struct with 2 fields. Each field
-%                          contain an (nboots x 1) vector of bootstrap 
-%                          estimates of the performances of the ceilings:
-%           .lower -- lower bound of noise ceiling
-%           .upper -- upper bound of noise ceiling
-%
-%       wholenet_results -- struct with 6 fields. Each field
-%                          contain an (nboots x 1) vector of bootstrap 
-%                          estimates of the performances of the following
-%                          strategies to estimate a whole-network
-%                          performance:
-%           .fittedPCA_fitted -- all-layer combinations of per-layer
-%                               fitted PCA RDMs
-%           .fittedRANDCA_fitted -- all-layer combinations of per-layer
-%                               fitted random component RDMs
-%           .unifPCA_fitted -- all-layer combinations of equally-weighted
-%                               per-layer PCA RDMs
-%           .unifRANDCA_fitted -- all-layer combinations of equally-weighted
-%                               per-layer random component RDMs
-%           .raw_fitted -- all-layer combinations of fixed raw per-layer RDMs
-%           .raw_unif -- equally-weighted all-layer combinations of fixed raw per-layer RDMs
+%       component_results -- cell array with M entries, one for each of 
+%                   the M model components. Each cell contains a structure
+%                   with one field named:
+%                       .raw -- (nboots x 1) vector of bootstrap estimates 
+%                           for this component alone
+%       ceiling_results -- struct with 2 fields. Each field contain an 
+%                   (nboots x 1) vector of bootstrap estimates of the 
+%                   performances of the expected performance of the "true"
+%                   model, given the inter-subject variability in the data.
+%                   See Nili et al (2014, https://doi.org/10.1371/journal.pcbi.1003553) for background information on
+%                   noise ceiling calculations, and see Storrs et al (2020, https://www.biorxiv.org/content/10.1101/2020.03.23.003046v1)
+%                   for a note on correct ceiling calculations for
+%                   reweighted models:
+%                       .lower -- lower bound of noise ceiling
+%                       .upper -- upper bound of noise ceiling
+%       combined_results -- struct with 2 fields, each containing an 
+%                   (nboots x 1) vector of bootstrap estimates of the 
+%                   combined performance of all components in the model,
+%                   when either:
+%                       .raw_fitted -- combined according to the best
+%                           linear reweighting, where weights are fitted in
+%                           the cross-validation procedure
+%                       .raw_unif -- combined with equal weights. Provides
+%                           a helpful baseline to assess how much the model 
+%                           benefits from reweighting
 
-%% Set these to appropriate paths:
+clear all
 
+% point to human and model data files:
+fmri_RDM_file = '../data_62demo/hIT_62imgs.mat';
+model_RDM_file = '../data_62demo/alexnetRDMs.mat';
+
+% set arguments for cross-validation process
+nboots = 50; % can make small for debugging. At least 1000 for full run.
+nCV = 2; % can make small for debugging (minimum 2). At least 50 for full run.
+nTestSubjects = 5; % approx 20% of the total number of participants
+nTestImages = 12; % approx 20% of the total number of stimuli
+
+% specify where to save results and create if it doesn't exist 
+% (beware overwriting! e.g. use a unique savedir with an informative name 
+% for each major run of the analysis)
+savedir = '../results/'; 
 try mkdir(savedir); end
 
-%% JOCN hIT architecture paper: 24-subject 62-image dataset 
-% load data and set options...
+%% 1. Load human target data
+% Amend name to suit your dataset
 
-load(fmrifile, 'fMRI_RDMs');
-refRDMs = permute(fMRI_RDMs.IT,[2,3,1]); % or desired ROI
-% amend subject data to put NaNs in the diagonals, so that when
+load(fmri_RDM_file); % loads as whatever name the data RDM was saved under,
+                     % in this demo it's called "hIT_62imgs"
+refRDMs = hIT_62imgs; % point to correct name of your data RDM
+
+% edit subject data to put NaNs in the diagonals, so that when
 % bootstrap resampling causes some to end up in the off-diag spots they can
 % be ignored (zeros would artificially inflate correlation)
 for s = 1:size(refRDMs,3)
@@ -102,62 +98,31 @@ for s = 1:size(refRDMs,3)
     refRDMs(:,:,s) = this_subj;
 end
 
-layerlist = dir([pcaRDMdir,'*.mat']);
-% Similar to options used by FUNC_compareRefRDM2candRDMs in RSA toolbox
-highlevel_options.reweighting = true; % true = bootstrapped xval reweighting. Otherwise proceeds with standard RSA Toolbox analysis.
-highlevel_options.resultsPath = savedir;
-highlevel_options.barsOrderedByRDMCorr = false;
-highlevel_options.rootPath = pwd;
+%% 2. Load model components
+% Amend name to suit your dataset
+
+load(model_RDM_file); % loads as whatever name the data RDM was saved under,
+                      % in this demo it's called "alexnetRDMs"
+model_RDMs = alexnetRDMs; % point to correct name of your data RDM
+
+%% 3. Set options
+% Mostly specified already at top of script, except for choice of what to
+% bootstrap over. Default is both subjects and stimuli.
 
 % options used by FUNC_bootstrap_wrapper
 highlevel_options.boot_options.nboots = nboots; 
-highlevel_options.boot_options.boot_conds = true;
-highlevel_options.boot_options.boot_subjs = true; 
+highlevel_options.boot_options.boot_conds = true; % true = will bootstrap over stimulus conditions
+highlevel_options.boot_options.boot_subjs = true; % true = will bootstrap over subjects/participants
 
 % options used by FUNC_reweighting_wrapper
-highlevel_options.rw_options.nTestSubjects = 5;
-highlevel_options.rw_options.nTestImages = 12;
-highlevel_options.rw_options.nCVs = nCV; % number of crossvalidation loops within each bootstrap sample (stabilises estimate)
+highlevel_options.rw_options.nTestSubjects = nTestSubjects;
+highlevel_options.rw_options.nTestImages = nTestImages;
+highlevel_options.rw_options.nCVs = nCV; 
 
-
-%% Cycle through, loading up sets of component RDMs from each layer 
-% and adding them to a whole-network cell array `model_RDMs`
-
-for layer = 1:length(layerlist)
-    
-    % load both PCA and RandCA component RDM sets for this layer
-    load(strcat(pcaRDMdir,layerlist(layer).name), 'layerpcs');
-    pcaRDMs = layerpcs; % rename
-    load(strcat(randcaRDMdir,layerlist(layer).name), 'layerpcs');
-    randcaRDMs = layerpcs; % rename
-    % also load full raw feature space RDM for this layer
-    load(strcat(rawRDMdir,layerlist(layer).name), 'rdm_raw');
-    
-    % create uniformly-weighted RDM from each type of components
-    unifPCA = zeros([62,62]); % hardcoded assuming trans62 stimulus set
-    unifRandCA = zeros([62,62]); % hardcoded assuming trans62 stimulus set
-    for i = 1:length(pcaRDMs)
-        unifPCA = unifPCA + (1/length(pcaRDMs)).*pcaRDMs(i).RDM;
-        unifRandCA = unifRandCA + (1/length(randcaRDMs)).*randcaRDMs(i).RDM;
-    end
-    
-    % put these into a nested struct containing everything for this layer
-    layer_struct.pcaRDMs = pcaRDMs; % inherits .RDM and .name fields
-    layer_struct.randcaRDMs = randcaRDMs; % inherits .RDM and .name fields
-    layer_struct.rawRDM.RDM = squareform(rdm_raw); % takes square, not triu, RDMs
-    layer_struct.rawRDM.name = 'raw feature space';
-    layer_struct.unifPCA.RDM = unifPCA;
-    layer_struct.unifPCA.name = 'uniformly-weighted PCA';
-    layer_struct.unifRandCA.RDM = unifRandCA;
-    layer_struct.unifRandCA.name = 'uniformly-weighted random CA';
-    
-    model_RDMs{layer} = layer_struct; % add to whole-model cell array
-end
-
-%% analyse
-[layerwise_results, ceiling_results, wholenet_results] = FUNC_bootstrap_wrapper(refRDMs, model_RDMs, highlevel_options, sampling_order);
+%% Run analysis and save results
+[component_results, ceiling_results, combined_results] = FUNC_bootstrap_wrapper(refRDMs, model_RDMs, highlevel_options);
 
 % save bootstrap distributions
-save(strcat(savedir,'bootstrap_output_layerwise'), 'layerwise_results');
-save(strcat(savedir,'bootstrap_output_wholenet'), 'wholenet_results');
+save(strcat(savedir,'bootstrap_output_components'), 'component_results');
 save(strcat(savedir,'bootstrap_output_ceilings'), 'ceiling_results');
+save(strcat(savedir,'bootstrap_output_combined'), 'combined_results');
