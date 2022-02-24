@@ -38,12 +38,12 @@
 %
 % OUTPUTS:
 % This script will output and save the following structures:
-%       component_results -- cell array with M entries, one for each of 
+%       bootstrap_output_components -- cell array with M entries, one for each of 
 %                   the M model components. Each cell contains a structure
 %                   with one field named:
 %                       .raw -- (nboots x 1) vector of bootstrap estimates 
 %                           for this component alone
-%       ceiling_results -- struct with 2 fields. Each field contain an 
+%       bootstrap_output_ceilings -- struct with 2 fields. Each field contain an 
 %                   (nboots x 1) vector of bootstrap estimates of the 
 %                   performances of the expected performance of the "true"
 %                   model, given the inter-subject variability in the data.
@@ -53,7 +53,7 @@
 %                   reweighted models:
 %                       .lower -- lower bound of noise ceiling
 %                       .upper -- upper bound of noise ceiling
-%       combined_results -- struct with 2 fields, each containing an 
+%       bootstrap_output_combined -- struct with 2 fields, each containing an 
 %                   (nboots x 1) vector of bootstrap estimates of the 
 %                   combined performance of all components in the model,
 %                   when either:
@@ -71,8 +71,8 @@ fmri_RDM_file = '../data_62demo/hIT_62imgs.mat';
 model_RDM_file = '../data_62demo/alexnetRDMs.mat';
 
 % set arguments for cross-validation process
-nboots = 50; % can make small for debugging. At least 1000 for full run.
-nCV = 2; % can make small for debugging (minimum 2). At least 50 for full run.
+nboots = 1000; % can make small for debugging. At least 1000 for full run.
+nCV = 100; % can make small for debugging (minimum 2). At least 50 for full run.
 nTestSubjects = 5; % approx 20% of the total number of participants
 nTestImages = 12; % approx 20% of the total number of stimuli
 
